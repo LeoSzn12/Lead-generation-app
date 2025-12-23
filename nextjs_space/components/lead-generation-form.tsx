@@ -19,7 +19,7 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const [cities, setCities] = useState('Los Angeles, San Diego')
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['Med Spa'])
   const [maxLeads, setMaxLeads] = useState(10)
-  const [source, setSource] = useState<string>('google_search')
+  const [source, setSource] = useState<string>('google_maps')
   const [apiKey, setApiKey] = useState('')
   const [rememberApiKey, setRememberApiKey] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -33,19 +33,19 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
     { 
       value: 'google_maps', 
       label: 'Google Maps API', 
-      description: 'Fast & accurate (requires API key)',
+      description: '⭐ Recommended - Fast & accurate (requires API key)',
       icon: <Zap className="w-4 h-4" />
     },
     { 
       value: 'google_search', 
       label: 'Google Search', 
-      description: 'Free but slower',
+      description: '⚠️ Limited - Often blocked by anti-bot measures',
       icon: <Globe className="w-4 h-4" />
     },
     { 
       value: 'yelp', 
       label: 'Yelp Scraping', 
-      description: 'Free with good data',
+      description: '⚠️ Limited - May not find all businesses',
       icon: <Globe className="w-4 h-4" />
     },
   ]
@@ -143,6 +143,34 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const timeEstimate = estimateTime(maxLeads, source)
 
   return (
+    <div className="space-y-4">
+      {/* API Key Help Card */}
+      {source === 'google_maps' && !apiKey && (
+        <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="pt-4">
+            <div className="flex gap-3">
+              <div className="text-blue-600 dark:text-blue-400 mt-0.5">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
+                  Need a Google Maps API Key?
+                </h4>
+                <p className="text-xs text-blue-800 dark:text-blue-200">
+                  Get accurate, real business data with Google Maps API:
+                </p>
+                <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
+                  <li>Go to <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener noreferrer" className="underline font-medium">Google Cloud Console</a></li>
+                  <li>Enable "Places API" and "Geocoding API"</li>
+                  <li>Create credentials and copy your API key</li>
+                  <li>Paste it below and check "Remember my API key"</li>
+                </ol>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
     <Card className="shadow-xl border-gray-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -178,8 +206,8 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
             </Select>
             <p className="text-xs text-gray-500">
               {source === 'google_maps' 
-                ? 'Google Maps API provides the fastest and most accurate results'
-                : 'Web scraping is free but slower and may have lower data quality'}
+                ? 'Google Maps API provides the fastest and most accurate real business data. Highly recommended!'
+                : '⚠️ Free web scraping often fails due to anti-bot protections. Google Maps API is strongly recommended for reliable results.'}
             </p>
           </div>
 
@@ -282,5 +310,6 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
         </form>
       </CardContent>
     </Card>
+    </div>
   )
 }
