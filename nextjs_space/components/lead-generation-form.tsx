@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Sparkles, Clock, Zap, Globe } from 'lucide-react'
+import { Loader2, Sparkles, Clock, Zap, Globe, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { estimateTime } from '@/lib/utils'
 
@@ -90,10 +90,7 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
       return
     }
 
-    if (source === 'google_maps' && !apiKey.trim()) {
-      toast.error('Please enter your Google Maps API key or choose a free data source')
-      return
-    }
+    // API key validation removed - using environment variable
 
     if (maxLeads < 1 || maxLeads > 100) {
       toast.error('Max leads must be between 1 and 100')
@@ -144,27 +141,21 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
 
   return (
     <div className="space-y-4">
-      {/* API Key Help Card */}
-      {source === 'google_maps' && !apiKey && (
-        <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+      {/* API Key Configured Notice */}
+      {source === 'google_maps' && (
+        <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
           <CardContent className="pt-4">
             <div className="flex gap-3">
-              <div className="text-blue-600 dark:text-blue-400 mt-0.5">
-                <Sparkles className="w-5 h-5" />
+              <div className="text-green-600 dark:text-green-400 mt-0.5">
+                <CheckCircle2 className="w-5 h-5" />
               </div>
-              <div className="flex-1 space-y-2">
-                <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
-                  Need a Google Maps API Key?
+              <div className="flex-1">
+                <h4 className="font-semibold text-green-900 dark:text-green-100 text-sm mb-1">
+                  ✅ Google Maps API Key Configured!
                 </h4>
-                <p className="text-xs text-blue-800 dark:text-blue-200">
-                  Get accurate, real business data with Google Maps API:
+                <p className="text-xs text-green-800 dark:text-green-200">
+                  Your API key is already set up. Just click "Generate Leads" below to start! No need to enter anything.
                 </p>
-                <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
-                  <li>Go to <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener noreferrer" className="underline font-medium">Google Cloud Console</a></li>
-                  <li>Enable "Places API" and "Geocoding API"</li>
-                  <li>Create credentials and copy your API key</li>
-                  <li>Paste it below and check "Remember my API key"</li>
-                </ol>
               </div>
             </div>
           </CardContent>
@@ -263,34 +254,6 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
               <span>Estimated time: {timeEstimate}</span>
             </div>
           </div>
-
-          {/* API Key (only if Google Maps selected) */}
-          {source === 'google_maps' && (
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">Google Maps API Key</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Enter your API key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="border-gray-300"
-              />
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="rememberApiKey"
-                  checked={rememberApiKey}
-                  onCheckedChange={handleRememberApiKey}
-                />
-                <label
-                  htmlFor="rememberApiKey"
-                  className="text-xs text-gray-600 cursor-pointer"
-                >
-                  Remember my API key (stored securely in browser)
-                </label>
-              </div>
-            </div>
-          )}
 
           {/* Submit Button */}
           <Button

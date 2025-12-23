@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (source === 'google_maps' && !apiKey) {
+    // Use provided API key or fall back to environment variable
+    const effectiveApiKey = apiKey || process.env.GOOGLE_MAPS_API_KEY;
+
+    if (source === 'google_maps' && !effectiveApiKey) {
       return NextResponse.json(
         { error: 'Google Maps API key is required for this data source' },
         { status: 400 }
@@ -62,7 +65,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Start async processing (don't await)
-    processLeadGeneration(job.id, cities, businessTypes, maxLeads, source, apiKey).catch((error) => {
+    processLeadGeneration(job.id, cities, businessTypes, maxLeads, source, effectiveApiKey).catch((error) => {
       console.error('Lead generation error:', error);
       prisma.generationJob.update({
         where: { id: job.id },
