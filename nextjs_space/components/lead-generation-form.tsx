@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Loader2, Sparkles, Clock, Zap, Globe } from 'lucide-react'
 import { toast } from 'sonner'
+import { estimateTime } from '@/lib/utils'
 
 interface LeadGenerationFormProps {
   onJobCreated: (jobId: string) => void
@@ -17,7 +19,9 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const [cities, setCities] = useState('Los Angeles, San Diego')
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['Med Spa'])
   const [maxLeads, setMaxLeads] = useState(10)
+  const [source, setSource] = useState<string>('google_search')
   const [apiKey, setApiKey] = useState('')
+  const [rememberApiKey, setRememberApiKey] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const businessTypes = [
@@ -25,12 +29,51 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
     { id: 'pharmacy', label: 'Pharmacy', value: 'Pharmacy' },
   ]
 
+  const dataSources = [
+    { 
+      value: 'google_maps', 
+      label: 'Google Maps API', 
+      description: 'Fast & accurate (requires API key)',
+      icon: <Zap className="w-4 h-4" />
+    },
+    { 
+      value: 'google_search', 
+      label: 'Google Search', 
+      description: 'Free but slower',
+      icon: <Globe className="w-4 h-4" />
+    },
+    { 
+      value: 'yelp', 
+      label: 'Yelp Scraping', 
+      description: 'Free with good data',
+      icon: <Globe className="w-4 h-4" />
+    },
+  ]
+
+  // Load saved API key on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedKey = localStorage.getItem('google_maps_api_key')
+      if (savedKey) {
+        setApiKey(savedKey)
+        setRememberApiKey(true)
+      }
+    }
+  }, [])
+
   const handleTypeToggle = (value: string) => {
     setSelectedTypes((prev) =>
       prev.includes(value)
         ? prev.filter((t) => t !== value)
         : [...prev, value]
     )
+  }
+
+  const handleRememberApiKey = (checked: boolean) => {
+    setRememberApiKey(checked)
+    if (!checked && typeof window !== 'undefined') {
+      localStorage.removeItem('google_maps_api_key')
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,14 +90,19 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
       return
     }
 
-    if (!apiKey.trim()) {
-      toast.error('Please enter your Google Maps API key')
+    if (source === 'google_maps' && !apiKey.trim()) {
+      toast.error('Please enter your Google Maps API key or choose a free data source')
       return
     }
 
     if (maxLeads < 1 || maxLeads > 100) {
       toast.error('Max leads must be between 1 and 100')
       return
+    }
+
+    // Save API key if requested
+    if (rememberApiKey && apiKey && typeof window !== 'undefined') {
+      localStorage.setItem('google_maps_api_key', apiKey)
     }
 
     setIsSubmitting(true)
@@ -71,7 +119,8 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
           cities: cityArray,
           businessTypes: selectedTypes,
           maxLeads,
-          apiKey,
+          source,
+          apiKey: source === 'google_maps' ? apiKey : undefined,
         }),
       })
 
@@ -91,6 +140,8 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
     }
   }
 
+  const timeEstimate = estimateTime(maxLeads, source)
+
   return (
     <Card className="shadow-xl border-gray-200">
       <CardHeader>
@@ -104,6 +155,34 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Data Source Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="source">Data Source</Label>
+            <Select value={source} onValueChange={setSource}>
+              <SelectTrigger id="source" className="border-gray-300">
+                <SelectValue placeholder="Select data source" />
+              </SelectTrigger>
+              <SelectContent>
+                {dataSources.map((ds) => (
+                  <SelectItem key={ds.value} value={ds.value}>
+                    <div className="flex items-center gap-2">
+                      {ds.icon}
+                      <div>
+                        <div className="font-medium">{ds.label}</div>
+                        <div className="text-xs text-gray-500">{ds.description}</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              {source === 'google_maps' 
+                ? 'Google Maps API provides the fastest and most accurate results'
+                : 'Web scraping is free but slower and may have lower data quality'}
+            </p>
+          </div>
+
           {/* Cities */}
           <div className="space-y-2">
             <Label htmlFor="cities">Cities in California</Label>
@@ -151,24 +230,39 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
               onChange={(e) => setMaxLeads(parseInt(e.target.value) || 10)}
               className="border-gray-300"
             />
-            <p className="text-xs text-gray-500">Between 1 and 100 leads</p>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Clock className="w-3 h-3" />
+              <span>Estimated time: {timeEstimate}</span>
+            </div>
           </div>
 
-          {/* API Key */}
-          <div className="space-y-2">
-            <Label htmlFor="apiKey">Google Maps API Key</Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder="Enter your API key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="border-gray-300"
-            />
-            <p className="text-xs text-gray-500">
-              Your API key is never stored and only used for this session
-            </p>
-          </div>
+          {/* API Key (only if Google Maps selected) */}
+          {source === 'google_maps' && (
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">Google Maps API Key</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="Enter your API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="border-gray-300"
+              />
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="rememberApiKey"
+                  checked={rememberApiKey}
+                  onCheckedChange={handleRememberApiKey}
+                />
+                <label
+                  htmlFor="rememberApiKey"
+                  className="text-xs text-gray-600 cursor-pointer"
+                >
+                  Remember my API key (stored securely in browser)
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Submit Button */}
           <Button
