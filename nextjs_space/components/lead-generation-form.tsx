@@ -20,6 +20,7 @@ interface LeadGenerationFormProps {
 export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const [cities, setCities] = useState('Los Angeles, San Diego')
   const [businessTypesInput, setBusinessTypesInput] = useState('Med Spa, Pharmacy')
+  const [excludeKeywordsInput, setExcludeKeywordsInput] = useState('')
   const [maxLeads, setMaxLeads] = useState(10)
   const [source, setSource] = useState<string>('google_maps')
   const [apiKey, setApiKey] = useState('')
@@ -136,6 +137,12 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
 
     try {
       const cityArray = cities.split(',').map((c) => c.trim()).filter(Boolean)
+      
+      // Parse exclusion keywords
+      const excludeKeywords = excludeKeywordsInput
+        .split(',')
+        .map((keyword) => keyword.trim())
+        .filter(Boolean)
 
       const response = await fetch('/api/generate-leads', {
         method: 'POST',
@@ -145,6 +152,7 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
         body: JSON.stringify({
           cities: cityArray,
           businessTypes: businessTypesArray,
+          excludeKeywords,
           maxLeads,
           source,
           apiKey: source === 'google_maps' || source === 'multi_source' ? apiKey : undefined,
@@ -276,6 +284,58 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
                     + {type}
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Exclude Keywords */}
+          <div className="space-y-3 p-4 border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 rounded-lg">
+            <div className="flex items-start gap-2">
+              <div className="text-orange-600 dark:text-orange-400 mt-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <Label htmlFor="excludeKeywords" className="text-orange-900 dark:text-orange-100 font-semibold">
+                  Exclude Keywords (Optional)
+                </Label>
+                <p className="text-xs text-orange-800 dark:text-orange-200 mb-2">
+                  Filter out unwanted businesses like large chains. Businesses matching any keyword will be excluded.
+                </p>
+                <Input
+                  id="excludeKeywords"
+                  placeholder="CVS, Walgreens, Rite Aid, Chain, Corporate..."
+                  value={excludeKeywordsInput}
+                  onChange={(e) => setExcludeKeywordsInput(e.target.value)}
+                  className="border-orange-300 dark:border-orange-700 bg-white dark:bg-gray-900"
+                />
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-medium text-orange-900 dark:text-orange-100">
+                    💡 Examples for independent pharmacies:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExcludeKeywordsInput('CVS, Walgreens, Rite Aid')}
+                      className="text-xs px-2 py-1 rounded-md bg-white hover:bg-orange-100 text-orange-700 border border-orange-300 transition-colors"
+                    >
+                      Add Chain Pharmacies
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExcludeKeywordsInput('Starbucks, McDonald\'s, Subway, Chipotle')}
+                      className="text-xs px-2 py-1 rounded-md bg-white hover:bg-orange-100 text-orange-700 border border-orange-300 transition-colors"
+                    >
+                      Add Chain Restaurants
+                    </button>
+                  </div>
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
+                    ℹ️ Matching is case-insensitive and checks business names. "CVS" will exclude "CVS Pharmacy" and "CVS Health".
+                  </p>
+                </div>
               </div>
             </div>
           </div>

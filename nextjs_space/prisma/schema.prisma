@@ -13,6 +13,7 @@ model GenerationJob {
   id          String   @id @default(cuid())
   cities      String[]
   businessTypes String[]
+  excludeKeywords String[] @default([]) // Keywords to exclude (e.g., ["CVS", "Walgreens"])
   maxLeads    Int
   status      String   @default("pending") // pending, processing, completed, failed
   progress    String   @default("Initializing...") 

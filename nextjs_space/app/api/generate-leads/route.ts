@@ -10,12 +10,27 @@ import { generateOutreachEmail } from '@/lib/email-templates';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
 
+// Helper function to check if a business should be excluded
+function shouldExcludeBusiness(businessName: string, excludeKeywords: string[]): boolean {
+  if (!excludeKeywords || excludeKeywords.length === 0) {
+    return false;
+  }
+  
+  const nameLower = businessName.toLowerCase().trim();
+  
+  return excludeKeywords.some(keyword => {
+    const keywordLower = keyword.toLowerCase().trim();
+    return nameLower.includes(keywordLower);
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { 
       cities, 
       businessTypes, 
+      excludeKeywords = [], // Array of keywords to exclude
       maxLeads, 
       source = 'google_search', 
       apiKey,
@@ -67,6 +82,7 @@ export async function POST(req: NextRequest) {
       data: {
         cities,
         businessTypes,
+        excludeKeywords,
         maxLeads,
         status: 'pending',
         progress: 'Initializing lead generation...',
@@ -74,7 +90,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Start async processing (don't await)
-    processLeadGeneration(job.id, cities, businessTypes, maxLeads, source, effectiveApiKey, generateOutreach, template).catch((error) => {
+    processLeadGeneration(job.id, cities, businessTypes, excludeKeywords, maxLeads, source, effectiveApiKey, generateOutreach, template).catch((error) => {
       console.error('Lead generation error:', error);
       prisma.generationJob.update({
         where: { id: job.id },
@@ -100,6 +116,7 @@ async function processLeadGeneration(
   jobId: string,
   cities: string[],
   businessTypes: string[],
+  excludeKeywords: string[],
   maxLeads: number,
   source: string,
   apiKey?: string,
@@ -308,8 +325,25 @@ async function processLeadGeneration(
       return acc;
     }, []);
 
+    // Filter out excluded businesses
+    const filteredBusinesses = uniqueBusinesses.filter(business => {
+      const businessName = business.name || business.businessName || '';
+      return !shouldExcludeBusiness(businessName, excludeKeywords);
+    });
+
+    const excludedCount = uniqueBusinesses.length - filteredBusinesses.length;
+    if (excludedCount > 0) {
+      console.log(`Excluded ${excludedCount} businesses based on keywords: ${excludeKeywords.join(', ')}`);
+      await prisma.generationJob.update({
+        where: { id: jobId },
+        data: {
+          progress: `Filtered out ${excludedCount} businesses matching exclusion keywords...`,
+        },
+      });
+    }
+
     // Limit to maxLeads
-    const businessesToProcess = uniqueBusinesses.slice(0, maxLeads);
+    const businessesToProcess = filteredBusinesses.slice(0, maxLeads);
 
     // Process each business
     let processedCount = 0;
