@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { LeadGenerationForm } from '@/components/lead-generation-form'
 import { ResultsDisplay } from '@/components/results-display-enhanced'
-import { Search, TrendingUp, Users, Moon, Sun, Mail, Star, Database, Sparkles, Facebook, Linkedin, Instagram, Twitter, FileSpreadsheet } from 'lucide-react'
+import { Search, TrendingUp, Users, Moon, Sun, Mail, Star, Database, Sparkles, Facebook, Linkedin, Instagram, Twitter, FileSpreadsheet, BookOpen } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 
 export default function Home() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
@@ -36,6 +37,12 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/how-to-use">
+              <Button variant="outline" className="hidden sm:flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                How to Use
+              </Button>
+            </Link>
             <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               <span className="text-xs">Phase 1 Complete</span>
