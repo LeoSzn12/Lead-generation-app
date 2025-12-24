@@ -17,16 +17,20 @@ interface LeadGenerationFormProps {
 
 export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const [cities, setCities] = useState('Los Angeles, San Diego')
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(['Med Spa'])
+  const [businessTypesInput, setBusinessTypesInput] = useState('Med Spa, Pharmacy')
   const [maxLeads, setMaxLeads] = useState(10)
   const [source, setSource] = useState<string>('google_maps')
   const [apiKey, setApiKey] = useState('')
   const [rememberApiKey, setRememberApiKey] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const businessTypes = [
-    { id: 'medspa', label: 'Med Spa', value: 'Med Spa' },
-    { id: 'pharmacy', label: 'Pharmacy', value: 'Pharmacy' },
+  // Popular business type suggestions
+  const popularBusinessTypes = [
+    'Med Spa', 'Pharmacy', 'Restaurant', 'Auto Repair', 'Real Estate Agent',
+    'Dentist', 'Lawyer', 'Contractor', 'Salon', 'Barber', 'Gym', 'Fitness Center',
+    'Pet Grooming', 'Veterinarian', 'Cleaning Service', 'Landscaping', 'HVAC',
+    'Plumber', 'Electrician', 'Chiropractor', 'Massage Therapist', 'Nail Salon',
+    'Insurance Agent', 'Financial Advisor', 'Accounting', 'Coffee Shop', 'Bakery',
   ]
 
   const dataSources = [
@@ -37,15 +41,27 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
       icon: <Zap className="w-4 h-4" />
     },
     { 
-      value: 'google_search', 
-      label: 'Google Search', 
-      description: '⚠️ Limited - Often blocked by anti-bot measures',
+      value: 'multi_source', 
+      label: 'Multi-Source', 
+      description: '🎯 Best Results - Combines Google Maps + Yellow Pages + Yelp',
+      icon: <Zap className="w-4 h-4" />
+    },
+    { 
+      value: 'yellowpages', 
+      label: 'Yellow Pages', 
+      description: '⚠️ Limited - Basic business directory data',
       icon: <Globe className="w-4 h-4" />
     },
     { 
       value: 'yelp', 
       label: 'Yelp Scraping', 
       description: '⚠️ Limited - May not find all businesses',
+      icon: <Globe className="w-4 h-4" />
+    },
+    { 
+      value: 'google_search', 
+      label: 'Google Search', 
+      description: '⚠️ Limited - Often blocked by anti-bot measures',
       icon: <Globe className="w-4 h-4" />
     },
   ]
@@ -61,12 +77,16 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
     }
   }, [])
 
-  const handleTypeToggle = (value: string) => {
-    setSelectedTypes((prev) =>
-      prev.includes(value)
-        ? prev.filter((t) => t !== value)
-        : [...prev, value]
-    )
+  const handleBusinessTypeSuggestion = (type: string) => {
+    // Add suggestion to input if not already present
+    const currentTypes = businessTypesInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    
+    if (!currentTypes.includes(type)) {
+      setBusinessTypesInput(currentTypes.length > 0 ? `${businessTypesInput}, ${type}` : type)
+    }
   }
 
   const handleRememberApiKey = (checked: boolean) => {
@@ -85,8 +105,14 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
       return
     }
 
-    if (selectedTypes.length === 0) {
-      toast.error('Please select at least one business type')
+    // Parse business types from input
+    const businessTypesArray = businessTypesInput
+      .split(',')
+      .map((type) => type.trim())
+      .filter(Boolean)
+
+    if (businessTypesArray.length === 0) {
+      toast.error('Please enter at least one business type')
       return
     }
 
@@ -114,10 +140,10 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
         },
         body: JSON.stringify({
           cities: cityArray,
-          businessTypes: selectedTypes,
+          businessTypes: businessTypesArray,
           maxLeads,
           source,
-          apiKey: source === 'google_maps' ? apiKey : undefined,
+          apiKey: source === 'google_maps' || source === 'multi_source' ? apiKey : undefined,
         }),
       })
 
@@ -154,7 +180,7 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
                   ✅ Google Maps API Key Configured!
                 </h4>
                 <p className="text-xs text-green-800 dark:text-green-200">
-                  Your API key is already set up. Just click "Generate Leads" below to start! No need to enter anything.
+                  Your API key is ready! Use "Google Maps API" or "Multi-Source" for best results. Just click "Generate Leads" to start!
                 </p>
               </div>
             </div>
@@ -217,23 +243,31 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
 
           {/* Business Types */}
           <div className="space-y-3">
-            <Label>Business Types</Label>
+            <Label htmlFor="businessTypes">Business Types</Label>
+            <Input
+              id="businessTypes"
+              placeholder="Med Spa, Pharmacy, Restaurant, Auto Repair..."
+              value={businessTypesInput}
+              onChange={(e) => setBusinessTypesInput(e.target.value)}
+              className="border-gray-300"
+            />
+            <p className="text-xs text-gray-500">
+              Separate multiple types with commas. Type ANY business category you want!
+            </p>
             <div className="space-y-2">
-              {businessTypes.map((type) => (
-                <div key={type.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={type.id}
-                    checked={selectedTypes.includes(type.value)}
-                    onCheckedChange={() => handleTypeToggle(type.value)}
-                  />
-                  <label
-                    htmlFor={type.id}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              <p className="text-xs font-medium text-gray-700">Popular suggestions (click to add):</p>
+              <div className="flex flex-wrap gap-2">
+                {popularBusinessTypes.slice(0, 12).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => handleBusinessTypeSuggestion(type)}
+                    className="text-xs px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors"
                   >
-                    {type.label}
-                  </label>
-                </div>
-              ))}
+                    + {type}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

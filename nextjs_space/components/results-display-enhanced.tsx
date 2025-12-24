@@ -24,6 +24,15 @@ interface Lead {
   possibleOwnerNames: string[]
   source: string
   outreachEmailDraft: string
+  
+  // Enrichment fields
+  rating?: number
+  reviewCount?: number
+  facebookUrl?: string
+  linkedinUrl?: string
+  instagramUrl?: string
+  twitterUrl?: string
+  employeeCount?: string
 }
 
 interface Job {
@@ -126,6 +135,8 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
       const worksheetData = job.leads.map(lead => ({
         'Business Name': lead.businessName,
         'Category': lead.category,
+        'Rating': lead.rating ? lead.rating.toFixed(1) : '',
+        'Review Count': lead.reviewCount || '',
         'Address': lead.address || '',
         'City': lead.city || '',
         'State': lead.state || '',
@@ -361,7 +372,14 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <h4 className="font-semibold text-gray-900">{lead.businessName}</h4>
-                      <p className="text-sm text-gray-600">{lead.category}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm text-gray-600">{lead.category}</p>
+                        {lead.rating && (
+                          <span className="text-xs text-yellow-600 font-medium">
+                            ⭐ {lead.rating.toFixed(1)} {lead.reviewCount && `(${lead.reviewCount})`}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <Badge variant="outline" className="text-xs">
                       {lead.source}
@@ -450,7 +468,15 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
           >
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-2xl font-bold text-gray-900">{selectedLead.businessName}</h3>
-              <p className="text-gray-600 mt-1">{selectedLead.category}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-gray-600">{selectedLead.category}</p>
+                {selectedLead.rating && (
+                  <span className="text-sm text-yellow-600 font-semibold">
+                    ⭐ {selectedLead.rating.toFixed(1)} ({selectedLead.reviewCount || 0} reviews)
+                  </span>
+                )}
+                <Badge variant="outline">{selectedLead.source}</Badge>
+              </div>
             </div>
 
             <div className="p-6 space-y-4">

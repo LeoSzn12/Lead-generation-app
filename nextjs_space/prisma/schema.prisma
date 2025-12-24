@@ -41,10 +41,28 @@ model Lead {
   possibleOwnerNames    String[] @default([])
   source                String
   outreachEmailDraft    String   @db.Text
+  
+  // Social Media & Enrichment
+  facebookUrl           String?
+  linkedinUrl           String?
+  instagramUrl          String?
+  twitterUrl            String?
+  rating                Float?
+  reviewCount           Int?
+  employeeCount         String?
+  
+  // Lead Management
+  tags                  String[] @default([])
+  notes                 String?  @db.Text
+  isContacted           Boolean  @default(false)
+  contactedAt           DateTime?
+  
   createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now()) @updatedAt
   
   job                   GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
   @@index([category])
+  @@index([isContacted])
 }

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { GoogleMapsClient } from '@/lib/google-maps';
 import { GoogleSearchScraper } from '@/lib/google-search-scraper';
 import { YelpScraper } from '@/lib/yelp-scraper';
+import { YellowPagesScraper } from '@/lib/yellowpages-scraper';
 import { WebScraper } from '@/lib/scraper';
 import { generateOutreachEmail } from '@/lib/email-templates';
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!['google_maps', 'google_search', 'yelp'].includes(source)) {
+    if (!['google_maps', 'google_search', 'yelp', 'yellowpages', 'multi_source'].includes(source)) {
       return NextResponse.json(
         { error: 'Invalid data source' },
         { status: 400 }
@@ -191,10 +192,114 @@ async function processLeadGeneration(
           progress: `Found ${allBusinesses.length} businesses via Yelp...`,
         },
       });
+    } else if (source === 'yellowpages') {
+      sourceName = 'Yellow Pages';
+      const yellowPagesScraper = new YellowPagesScraper();
+
+      await prisma.generationJob.update({
+        where: { id: jobId },
+        data: {
+          progress: `Searching via Yellow Pages (free)...`,
+        },
+      });
+
+      const businesses = await yellowPagesScraper.findBusinesses(cities, businessTypes, maxLeads);
+      allBusinesses.push(...businesses);
+
+      await prisma.generationJob.update({
+        where: { id: jobId },
+        data: {
+          totalFound: allBusinesses.length,
+          progress: `Found ${allBusinesses.length} businesses via Yellow Pages...`,
+        },
+      });
+    } else if (source === 'multi_source') {
+      sourceName = 'Multi-Source';
+      
+      // Use Google Maps API for most reliable results
+      if (apiKey) {
+        await prisma.generationJob.update({
+          where: { id: jobId },
+          data: {
+            progress: `Multi-source search: Starting with Google Maps...`,
+          },
+        });
+
+        const googleMaps = new GoogleMapsClient(apiKey);
+        const leadsPerSearch = Math.ceil(maxLeads * 0.6 / (cities.length * businessTypes.length)); // 60% from Google Maps
+
+        for (const city of cities) {
+          for (const businessType of businessTypes) {
+            try {
+              const businesses = await googleMaps.searchBusinesses(city, businessType, leadsPerSearch);
+              allBusinesses.push(...businesses.map(b => ({ ...b, source: 'google_maps' })));
+            } catch (error: any) {
+              console.error(`Error with Google Maps for ${businessType} in ${city}:`, error);
+            }
+          }
+        }
+      }
+
+      // Add Yellow Pages for additional coverage
+      await prisma.generationJob.update({
+        where: { id: jobId },
+        data: {
+          totalFound: allBusinesses.length,
+          progress: `Multi-source: Found ${allBusinesses.length} from Google Maps, now checking Yellow Pages...`,
+        },
+      });
+
+      const yellowPagesScraper = new YellowPagesScraper();
+      const ypBusinesses = await yellowPagesScraper.findBusinesses(
+        cities, 
+        businessTypes, 
+        Math.ceil(maxLeads * 0.3) // 30% from Yellow Pages
+      );
+      allBusinesses.push(...ypBusinesses.map(b => ({ ...b, source: 'yellowpages' })));
+
+      // Add Yelp for final enrichment
+      await prisma.generationJob.update({
+        where: { id: jobId },
+        data: {
+          totalFound: allBusinesses.length,
+          progress: `Multi-source: Found ${allBusinesses.length} total, finalizing with Yelp...`,
+        },
+      });
+
+      const yelpScraper = new YelpScraper();
+      const yelpBusinesses = await yelpScraper.findBusinesses(
+        cities, 
+        businessTypes, 
+        Math.ceil(maxLeads * 0.1) // 10% from Yelp
+      );
+      allBusinesses.push(...yelpBusinesses.map(b => ({ ...b, source: 'yelp' })));
+
+      await prisma.generationJob.update({
+        where: { id: jobId },
+        data: {
+          totalFound: allBusinesses.length,
+          progress: `Multi-source complete: Found ${allBusinesses.length} businesses from all sources!`,
+        },
+      });
     }
 
+    // Remove duplicates based on business name and address
+    const uniqueBusinesses = allBusinesses.reduce((acc: any[], curr: any) => {
+      const businessName = (curr.name || curr.businessName || '').toLowerCase().trim();
+      const address = (curr.address || '').toLowerCase().trim();
+      const isDuplicate = acc.some(b => {
+        const existingName = (b.name || b.businessName || '').toLowerCase().trim();
+        const existingAddress = (b.address || '').toLowerCase().trim();
+        return existingName === businessName && existingAddress === address;
+      });
+      if (!isDuplicate && businessName) {
+        acc.push(curr);
+      }
+      return acc;
+    }, []);
+
     // Limit to maxLeads
-    const businessesToProcess = allBusinesses.slice(0, maxLeads);
+    const businessesToProcess = uniqueBusinesses.slice(0, maxLeads);
 
     // Process each business
     let processedCount = 0;
@@ -236,7 +341,7 @@ async function processLeadGeneration(
           business.website
         );
 
-        // Save lead to database
+        // Save lead to database with enrichment data
         await prisma.lead.create({
           data: {
             jobId,
@@ -249,8 +354,17 @@ async function processLeadGeneration(
             website: business.website,
             emails,
             possibleOwnerNames: ownerNames,
-            source: sourceName,
+            source: business.source || sourceName,
             outreachEmailDraft: outreachEmail,
+            
+            // Enrichment fields
+            rating: business.rating || null,
+            reviewCount: business.reviewCount || null,
+            facebookUrl: null, // Will be enriched later if needed
+            linkedinUrl: null,
+            instagramUrl: null,
+            twitterUrl: null,
+            employeeCount: null,
           },
         });
 
