@@ -1,11 +1,33 @@
+interface EmailTemplateData {
+  subject?: string;
+  body?: string;
+}
+
 export function generateOutreachEmail(
   businessName: string,
   category: string,
   ownerNames: string[],
-  website?: string
+  website?: string,
+  city?: string,
+  customTemplate?: EmailTemplateData
 ): string {
   const ownerName = ownerNames?.[0] || 'there';
-  const greeting = ownerName !== 'there' ? `Hi ${ownerName.split(' ')[0]}` : 'Hello';
+  const firstName = ownerName !== 'there' ? ownerName.split(' ')[0] : 'there';
+  
+  // If custom template provided, use it with variable substitution
+  if (customTemplate?.body) {
+    return substituteVariables(customTemplate.body, {
+      businessName,
+      category,
+      ownerName,
+      firstName,
+      website: website || '',
+      city: city || '',
+    });
+  }
+  
+  // Default templates
+  const greeting = ownerName !== 'there' ? `Hi ${firstName}` : 'Hello';
 
   if (category.toLowerCase().includes('med spa') || category.toLowerCase().includes('medical spa')) {
     return `${greeting},
@@ -21,14 +43,12 @@ Best regards,
 [Your Company]
 [Your Contact Info]`;
   } else {
-    // Pharmacy template
+    // Generic business template
     return `${greeting},
 
-I noticed ${businessName}${website ? ` (${website})` : ''} serves the local community with pharmacy services.
+I noticed ${businessName}${website ? ` (${website})` : ''} and wanted to reach out.
 
-We work with independent pharmacies to help them compete with large chains through improved patient engagement, automated prescription reminders, and online ordering systems.
-
-Our clients typically see improved patient retention and higher prescription fill rates within the first 90 days.
+We specialize in helping ${category} businesses like yours grow through [your service/product]. Many of our clients in the ${category} industry have seen significant improvements.
 
 Would you be interested in learning more about how we can support ${businessName}?
 
@@ -37,4 +57,16 @@ Best regards,
 [Your Company]
 [Your Contact Info]`;
   }
+}
+
+function substituteVariables(text: string, variables: Record<string, string>): string {
+  let result = text;
+  
+  // Replace all template variables
+  Object.entries(variables).forEach(([key, value]) => {
+    const regex = new RegExp(`\\{${key}\\}`, 'g');
+    result = result.replace(regex, value || '');
+  });
+  
+  return result;
 }

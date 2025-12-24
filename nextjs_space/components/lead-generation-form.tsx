@@ -7,9 +7,11 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Sparkles, Clock, Zap, Globe, CheckCircle2 } from 'lucide-react'
+import { Loader2, Sparkles, Clock, Zap, Globe, CheckCircle2, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { estimateTime } from '@/lib/utils'
+import { TemplateManager, EmailTemplate } from '@/components/template-manager'
+import { Separator } from '@/components/ui/separator'
 
 interface LeadGenerationFormProps {
   onJobCreated: (jobId: string) => void
@@ -23,6 +25,8 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const [apiKey, setApiKey] = useState('')
   const [rememberApiKey, setRememberApiKey] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [generateOutreach, setGenerateOutreach] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null)
 
   // Popular business type suggestions
   const popularBusinessTypes = [
@@ -144,6 +148,11 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
           maxLeads,
           source,
           apiKey: source === 'google_maps' || source === 'multi_source' ? apiKey : undefined,
+          generateOutreach,
+          template: selectedTemplate ? {
+            subject: selectedTemplate.subject,
+            body: selectedTemplate.body,
+          } : undefined,
         }),
       })
 
@@ -288,6 +297,47 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
               <span>Estimated time: {timeEstimate}</span>
             </div>
           </div>
+
+          <Separator className="my-6" />
+
+          {/* AI Outreach Toggle */}
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="generateOutreach"
+                checked={generateOutreach}
+                onCheckedChange={(checked) => {
+                  setGenerateOutreach(checked as boolean);
+                  if (!checked) setSelectedTemplate(null);
+                }}
+              />
+              <div className="flex-1">
+                <Label 
+                  htmlFor="generateOutreach" 
+                  className="cursor-pointer font-semibold text-base flex items-center gap-2"
+                >
+                  <Mail className="w-4 h-4 text-blue-600" />
+                  Generate AI Outreach Emails
+                </Label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Automatically create personalized outreach emails for each lead. Uncheck to skip email generation and save time.
+                </p>
+              </div>
+            </div>
+
+            {/* Template Selection */}
+            {generateOutreach && (
+              <div className="pl-7 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <Separator />
+                <TemplateManager 
+                  onSelectTemplate={setSelectedTemplate}
+                  selectedTemplateId={selectedTemplate?.id || null}
+                />
+              </div>
+            )}
+          </div>
+
+          <Separator className="my-6" />
 
           {/* Submit Button */}
           <Button

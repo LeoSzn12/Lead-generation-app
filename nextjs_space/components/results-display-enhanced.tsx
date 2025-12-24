@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Download, Clock, CheckCircle2, XCircle, Loader2, Mail, Phone, Globe, User, Copy, Check, FileSpreadsheet, RefreshCw, Search, Filter } from 'lucide-react'
+import { Download, Clock, CheckCircle2, XCircle, Loader2, Mail, Phone, Globe, User, Copy, Check, FileSpreadsheet, RefreshCw, Search, Filter, Facebook, Linkedin, Instagram, Twitter } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
@@ -144,20 +144,41 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
         'Website': lead.website || '',
         'Emails': lead.emails.join(', '),
         'Possible Owner Names': lead.possibleOwnerNames.join(', '),
+        'Facebook': lead.facebookUrl || '',
+        'LinkedIn': lead.linkedinUrl || '',
+        'Instagram': lead.instagramUrl || '',
+        'Twitter': lead.twitterUrl || '',
         'Source': lead.source,
-        'Outreach Email Draft': lead.outreachEmailDraft,
+        'Outreach Email Draft': lead.outreachEmailDraft || '',
       }))
 
       const worksheet = XLSX.utils.json_to_sheet(worksheetData)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads')
 
-      // Auto-size columns
-      const maxWidth = 50
-      const colWidths = Object.keys(worksheetData[0] || {}).map(key => ({
-        wch: Math.min(maxWidth, Math.max(key.length, 10))
-      }))
-      worksheet['!cols'] = colWidths
+      // Auto-size columns with better width calculation
+      const colWidths = Object.keys(worksheetData[0] || {}).map(key => {
+        const maxContentLength = Math.max(
+          key.length,
+          ...worksheetData.map(row => String(row[key as keyof typeof row] || '').length)
+        );
+        return {
+          wch: Math.min(50, Math.max(10, maxContentLength + 2))
+        };
+      });
+      worksheet['!cols'] = colWidths;
+
+      // Add header styling
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!worksheet[cellAddress]) continue;
+        worksheet[cellAddress].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center" }
+        };
+      }
 
       XLSX.writeFile(workbook, `leads-${jobId}.xlsx`)
       toast.success('Excel file downloaded!')
@@ -419,6 +440,56 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
                         </span>
                       )}
                     </div>
+                    
+                    {/* Social Media Icons */}
+                    {(lead.facebookUrl || lead.linkedinUrl || lead.instagramUrl || lead.twitterUrl) && (
+                      <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                        {lead.facebookUrl && (
+                          <a
+                            href={lead.facebookUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                            title="Facebook"
+                          >
+                            <Facebook className="w-4 h-4" />
+                          </a>
+                        )}
+                        {lead.linkedinUrl && (
+                          <a
+                            href={lead.linkedinUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-700 hover:text-blue-900 transition-colors"
+                            title="LinkedIn"
+                          >
+                            <Linkedin className="w-4 h-4" />
+                          </a>
+                        )}
+                        {lead.instagramUrl && (
+                          <a
+                            href={lead.instagramUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-pink-600 hover:text-pink-800 transition-colors"
+                            title="Instagram"
+                          >
+                            <Instagram className="w-4 h-4" />
+                          </a>
+                        )}
+                        {lead.twitterUrl && (
+                          <a
+                            href={lead.twitterUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sky-600 hover:text-sky-800 transition-colors"
+                            title="Twitter"
+                          >
+                            <Twitter className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -518,6 +589,59 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
                   >
                     {selectedLead.website}
                   </a>
+                </div>
+              )}
+
+              {/* Social Media Handles */}
+              {(selectedLead.facebookUrl || selectedLead.linkedinUrl || selectedLead.instagramUrl || selectedLead.twitterUrl) && (
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">Social Media</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedLead.facebookUrl && (
+                      <a
+                        href={selectedLead.facebookUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors"
+                      >
+                        <Facebook className="w-4 h-4" />
+                        <span className="text-sm font-medium">Facebook</span>
+                      </a>
+                    )}
+                    {selectedLead.linkedinUrl && (
+                      <a
+                        href={selectedLead.linkedinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors"
+                      >
+                        <Linkedin className="w-4 h-4" />
+                        <span className="text-sm font-medium">LinkedIn</span>
+                      </a>
+                    )}
+                    {selectedLead.instagramUrl && (
+                      <a
+                        href={selectedLead.instagramUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-md transition-colors"
+                      >
+                        <Instagram className="w-4 h-4" />
+                        <span className="text-sm font-medium">Instagram</span>
+                      </a>
+                    )}
+                    {selectedLead.twitterUrl && (
+                      <a
+                        href={selectedLead.twitterUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-md transition-colors"
+                      >
+                        <Twitter className="w-4 h-4" />
+                        <span className="text-sm font-medium">Twitter</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
 

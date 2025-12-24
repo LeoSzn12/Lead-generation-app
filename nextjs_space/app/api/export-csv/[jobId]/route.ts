@@ -33,6 +33,8 @@ export async function GET(
     const headers = [
       'business_name',
       'category',
+      'rating',
+      'review_count',
       'address',
       'city',
       'state',
@@ -40,6 +42,10 @@ export async function GET(
       'website',
       'emails',
       'possible_owner_names',
+      'facebook',
+      'linkedin',
+      'instagram',
+      'twitter',
       'source',
       'outreach_email_draft',
     ];
@@ -47,6 +53,8 @@ export async function GET(
     const rows = leads.map((lead) => [
       escapeCsvValue(lead.businessName),
       escapeCsvValue(lead.category),
+      escapeCsvValue(lead.rating ? lead.rating.toString() : ''),
+      escapeCsvValue(lead.reviewCount ? lead.reviewCount.toString() : ''),
       escapeCsvValue(lead.address || ''),
       escapeCsvValue(lead.city || ''),
       escapeCsvValue(lead.state || ''),
@@ -54,8 +62,12 @@ export async function GET(
       escapeCsvValue(lead.website || ''),
       escapeCsvValue(lead.emails?.join('; ') || ''),
       escapeCsvValue(lead.possibleOwnerNames?.join('; ') || ''),
+      escapeCsvValue(lead.facebookUrl || ''),
+      escapeCsvValue(lead.linkedinUrl || ''),
+      escapeCsvValue(lead.instagramUrl || ''),
+      escapeCsvValue(lead.twitterUrl || ''),
       escapeCsvValue(lead.source),
-      escapeCsvValue(lead.outreachEmailDraft),
+      escapeCsvValue(lead.outreachEmailDraft || ''),
     ]);
 
     const csvContent = [

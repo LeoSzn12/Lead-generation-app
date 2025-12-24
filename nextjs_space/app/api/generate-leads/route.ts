@@ -13,7 +13,15 @@ export const maxDuration = 300; // 5 minutes max
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { cities, businessTypes, maxLeads, source = 'google_search', apiKey } = body;
+    const { 
+      cities, 
+      businessTypes, 
+      maxLeads, 
+      source = 'google_search', 
+      apiKey,
+      generateOutreach = true, // Default to true for backward compatibility
+      template 
+    } = body;
 
     // Validation
     if (!cities || !Array.isArray(cities) || cities.length === 0) {
@@ -66,7 +74,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Start async processing (don't await)
-    processLeadGeneration(job.id, cities, businessTypes, maxLeads, source, effectiveApiKey).catch((error) => {
+    processLeadGeneration(job.id, cities, businessTypes, maxLeads, source, effectiveApiKey, generateOutreach, template).catch((error) => {
       console.error('Lead generation error:', error);
       prisma.generationJob.update({
         where: { id: job.id },
@@ -94,7 +102,9 @@ async function processLeadGeneration(
   businessTypes: string[],
   maxLeads: number,
   source: string,
-  apiKey?: string
+  apiKey?: string,
+  generateOutreach: boolean = true,
+  template?: { subject?: string; body?: string }
 ) {
   try {
     await prisma.generationJob.update({
@@ -317,6 +327,14 @@ async function processLeadGeneration(
         let phones: string[] = business.phone ? [business.phone] : [];
         let ownerNames: string[] = [];
 
+        // Social media handles
+        let socialMedia = {
+          facebook: null as string | null,
+          linkedin: null as string | null,
+          instagram: null as string | null,
+          twitter: null as string | null,
+        };
+
         // Scrape website if available
         if (business.website) {
           try {
@@ -328,18 +346,33 @@ async function processLeadGeneration(
             if (scrapedData.phones && scrapedData.phones.length > 0) {
               phones = [...new Set([...phones, ...scrapedData.phones])];
             }
+            
+            // Extract social media handles
+            if (scrapedData.socialMedia) {
+              socialMedia = {
+                facebook: scrapedData.socialMedia.facebook || null,
+                linkedin: scrapedData.socialMedia.linkedin || null,
+                instagram: scrapedData.socialMedia.instagram || null,
+                twitter: scrapedData.socialMedia.twitter || null,
+              };
+            }
           } catch (error) {
             console.error(`Error scraping ${business.website}:`, error);
           }
         }
 
-        // Generate outreach email
-        const outreachEmail = generateOutreachEmail(
-          businessName,
-          business.category,
-          ownerNames,
-          business.website
-        );
+        // Generate outreach email only if requested
+        let outreachEmail = '';
+        if (generateOutreach) {
+          outreachEmail = generateOutreachEmail(
+            businessName,
+            business.category,
+            ownerNames,
+            business.website,
+            business.city,
+            template
+          );
+        }
 
         // Save lead to database with enrichment data
         await prisma.lead.create({
@@ -360,10 +393,10 @@ async function processLeadGeneration(
             // Enrichment fields
             rating: business.rating || null,
             reviewCount: business.reviewCount || null,
-            facebookUrl: null, // Will be enriched later if needed
-            linkedinUrl: null,
-            instagramUrl: null,
-            twitterUrl: null,
+            facebookUrl: socialMedia.facebook,
+            linkedinUrl: socialMedia.linkedin,
+            instagramUrl: socialMedia.instagram,
+            twitterUrl: socialMedia.twitter,
             employeeCount: null,
           },
         });

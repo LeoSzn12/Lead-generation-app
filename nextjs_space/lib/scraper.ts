@@ -4,6 +4,12 @@ interface ScrapedData {
   emails: string[];
   phones: string[];
   ownerNames: string[];
+  socialMedia: {
+    facebook?: string;
+    linkedin?: string;
+    instagram?: string;
+    twitter?: string;
+  };
 }
 
 export class WebScraper {
@@ -43,16 +49,102 @@ export class WebScraper {
   }
 
   private extractEmails(html: string): string[] {
+    const emails = new Set<string>();
+    
+    // Standard email regex
     const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-    const emails = html.match(emailRegex) || [];
+    const matches = html.match(emailRegex) || [];
+    matches.forEach(email => emails.add(email.toLowerCase()));
+    
+    // Extract from mailto: links
+    const mailtoRegex = /mailto:([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,})/gi;
+    const mailtoMatches = html.matchAll(mailtoRegex);
+    for (const match of mailtoMatches) {
+      if (match[1]) emails.add(match[1].toLowerCase());
+    }
+    
+    // Extract obfuscated emails (e.g., "info [at] example [dot] com")
+    const obfuscatedRegex = /\b([A-Za-z0-9._%+-]+)\s*\[?\s*(?:at|@)\s*\]?\s*([A-Za-z0-9.-]+)\s*\[?\s*(?:dot|\.)\s*\]?\s*([A-Z|a-z]{2,})\b/gi;
+    const obfuscatedMatches = html.matchAll(obfuscatedRegex);
+    for (const match of obfuscatedMatches) {
+      if (match[1] && match[2] && match[3]) {
+        emails.add(`${match[1]}@${match[2]}.${match[3]}`.toLowerCase());
+      }
+    }
+    
     // Filter out common false positives
-    return [...new Set(emails)].filter(email => 
+    const filtered = Array.from(emails).filter(email => 
       !email.includes('example.com') && 
       !email.includes('domain.com') &&
       !email.includes('yoursite.com') &&
       !email.includes('sentry.io') &&
-      !email.includes('wixpress.com')
-    ).slice(0, 5); // Limit to 5 emails
+      !email.includes('wixpress.com') &&
+      !email.includes('yourdomain.com') &&
+      !email.includes('emailaddress.com') &&
+      !email.includes('wordpress.org') &&
+      !email.includes('gravatar.com') &&
+      !email.includes('schema.org') &&
+      !email.endsWith('.png') &&
+      !email.endsWith('.jpg')
+    );
+    
+    return filtered.slice(0, 8); // Increased limit to 8 emails
+  }
+  
+  private extractSocialMedia(html: string, baseUrl: string): {
+    facebook?: string;
+    linkedin?: string;
+    instagram?: string;
+    twitter?: string;
+  } {
+    const social: {
+      facebook?: string;
+      linkedin?: string;
+      instagram?: string;
+      twitter?: string;
+    } = {};
+    
+    // Facebook
+    const facebookRegex = /(?:https?:)?\/\/(?:www\.)?(?:facebook\.com|fb\.com)\/([A-Za-z0-9._-]+)/gi;
+    const fbMatches = html.matchAll(facebookRegex);
+    for (const match of fbMatches) {
+      if (match[0] && !match[0].includes('sharer') && !match[0].includes('plugins')) {
+        social.facebook = match[0].replace(/^\/\//, 'https://');
+        break;
+      }
+    }
+    
+    // LinkedIn
+    const linkedinRegex = /(?:https?:)?\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/([A-Za-z0-9._-]+)/gi;
+    const liMatches = html.matchAll(linkedinRegex);
+    for (const match of liMatches) {
+      if (match[0]) {
+        social.linkedin = match[0].replace(/^\/\//, 'https://');
+        break;
+      }
+    }
+    
+    // Instagram
+    const instagramRegex = /(?:https?:)?\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/gi;
+    const igMatches = html.matchAll(instagramRegex);
+    for (const match of igMatches) {
+      if (match[0]) {
+        social.instagram = match[0].replace(/^\/\//, 'https://');
+        break;
+      }
+    }
+    
+    // Twitter/X
+    const twitterRegex = /(?:https?:)?\/\/(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)/gi;
+    const twMatches = html.matchAll(twitterRegex);
+    for (const match of twMatches) {
+      if (match[0] && !match[0].includes('intent') && !match[0].includes('share')) {
+        social.twitter = match[0].replace(/^\/\//, 'https://');
+        break;
+      }
+    }
+    
+    return social;
   }
 
   private extractPhones(html: string): string[] {
@@ -105,6 +197,7 @@ export class WebScraper {
       emails: [],
       phones: [],
       ownerNames: [],
+      socialMedia: {},
     };
 
     try {
@@ -142,13 +235,19 @@ export class WebScraper {
       result.emails = this.extractEmails(html);
       result.phones = this.extractPhones(html);
       result.ownerNames = this.extractOwnerNames(html);
+      result.socialMedia = this.extractSocialMedia(html, url);
 
-      // Try to scrape About/Contact pages for more info
+      // Try to scrape multiple pages for more info
       const urlObj = new URL(url);
-      const aboutPages = ['/about', '/about-us', '/team', '/contact', '/our-team'];
+      const additionalPages = [
+        '/about', '/about-us', '/team', '/contact', '/our-team',
+        '/contact-us', '/meet-the-team', '/our-story', '/privacy-policy',
+        '/staff', '/leadership', '/management', '/people'
+      ];
       
-      for (const page of aboutPages) {
-        if (result.ownerNames.length >= 3) break; // Stop if we have enough names
+      for (const page of additionalPages) {
+        // Stop if we have enough data
+        if (result.ownerNames.length >= 5 && result.emails.length >= 5) break;
 
         try {
           await this.respectDelay();
@@ -160,12 +259,35 @@ export class WebScraper {
 
           if (pageResponse.ok) {
             const pageHtml = await pageResponse.text();
-            const pageNames = this.extractOwnerNames(pageHtml);
-            result.ownerNames = [...new Set([...result.ownerNames, ...pageNames])].slice(0, 5);
             
-            if (result.emails.length < 2) {
+            // Extract more owner names
+            if (result.ownerNames.length < 5) {
+              const pageNames = this.extractOwnerNames(pageHtml);
+              result.ownerNames = [...new Set([...result.ownerNames, ...pageNames])].slice(0, 5);
+            }
+            
+            // Extract more emails
+            if (result.emails.length < 8) {
               const pageEmails = this.extractEmails(pageHtml);
-              result.emails = [...new Set([...result.emails, ...pageEmails])].slice(0, 5);
+              result.emails = [...new Set([...result.emails, ...pageEmails])].slice(0, 8);
+            }
+            
+            // Extract more phone numbers
+            if (result.phones.length < 3) {
+              const pagePhones = this.extractPhones(pageHtml);
+              result.phones = [...new Set([...result.phones, ...pagePhones])].slice(0, 3);
+            }
+            
+            // Fill in missing social media
+            if (!result.socialMedia.facebook || !result.socialMedia.linkedin || 
+                !result.socialMedia.instagram || !result.socialMedia.twitter) {
+              const pageSocial = this.extractSocialMedia(pageHtml, url);
+              result.socialMedia = {
+                facebook: result.socialMedia.facebook || pageSocial.facebook,
+                linkedin: result.socialMedia.linkedin || pageSocial.linkedin,
+                instagram: result.socialMedia.instagram || pageSocial.instagram,
+                twitter: result.socialMedia.twitter || pageSocial.twitter,
+              };
             }
           }
         } catch (error) {
