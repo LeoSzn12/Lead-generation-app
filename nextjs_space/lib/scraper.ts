@@ -72,21 +72,114 @@ export class WebScraper {
       }
     }
     
+    // Helper function to validate email structure
+    const isValidEmail = (email: string): boolean => {
+      // Must have exactly one @ symbol
+      const atCount = (email.match(/@/g) || []).length;
+      if (atCount !== 1) return false;
+      
+      const [localPart, domainPart] = email.split('@');
+      
+      // Local part should not be empty or too short
+      if (!localPart || localPart.length < 2) return false;
+      
+      // Domain part validation
+      if (!domainPart || domainPart.length < 4) return false;
+      
+      // Domain should have at least one dot
+      if (!domainPart.includes('.')) return false;
+      
+      // Domain should not start or end with dot or hyphen
+      if (domainPart.startsWith('.') || domainPart.startsWith('-') || 
+          domainPart.endsWith('.') || domainPart.endsWith('-')) return false;
+      
+      // Check for valid TLD (at least 2 chars after last dot)
+      const tld = domainPart.split('.').pop();
+      if (!tld || tld.length < 2) return false;
+      
+      // TLD should only contain letters
+      if (!/^[a-z]+$/.test(tld)) return false;
+      
+      return true;
+    };
+    
     // Filter out common false positives
-    const filtered = Array.from(emails).filter(email => 
-      !email.includes('example.com') && 
-      !email.includes('domain.com') &&
-      !email.includes('yoursite.com') &&
-      !email.includes('sentry.io') &&
-      !email.includes('wixpress.com') &&
-      !email.includes('yourdomain.com') &&
-      !email.includes('emailaddress.com') &&
-      !email.includes('wordpress.org') &&
-      !email.includes('gravatar.com') &&
-      !email.includes('schema.org') &&
-      !email.endsWith('.png') &&
-      !email.endsWith('.jpg')
-    );
+    const filtered = Array.from(emails).filter(email => {
+      // Basic validation
+      if (!isValidEmail(email)) return false;
+      
+      // File extensions in local or domain part (JavaScript, CSS, images, PDFs, etc.)
+      const fileExtensions = [
+        '.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.pdf', 
+        '.doc', '.docx', '.xls', '.xlsx', '.zip', '.rar', '.mp4', '.mp3',
+        '.woff', '.woff2', '.ttf', '.eot', '.otf', '.ico', '.webp'
+      ];
+      if (fileExtensions.some(ext => email.includes(ext))) return false;
+      
+      // Common tracking/analytics domains
+      const trackingDomains = [
+        'google-analytics.com', 'googletagmanager.com', 'doubleclick.net',
+        'facebook.com', 'facebook.net', 'google.com', 'gstatic.com',
+        'googleapis.com', 'cloudflare.com', 'jsdelivr.net', 'unpkg.com',
+        'cdnjs.cloudflare.com', 'sentry.io', 'hotjar.com', 'hotjar.io',
+        'segment.com', 'segment.io', 'amplitude.com', 'mixpanel.com',
+        'intercom.io', 'drift.com', 'zendesk.com', 'freshdesk.com',
+        'crisp.chat', 'tawk.to', 'livechatinc.com', 'olark.com',
+        'smartlook.com', 'fullstory.com', 'logrocket.com', 'datadog.com'
+      ];
+      if (trackingDomains.some(domain => email.includes(domain))) return false;
+      
+      // Common placeholder/template domains
+      const placeholderDomains = [
+        'example.com', 'domain.com', 'yoursite.com', 'yourdomain.com',
+        'emailaddress.com', 'email.com', 'mail.com', 'test.com',
+        'localhost', '127.0.0.1'
+      ];
+      if (placeholderDomains.some(domain => email.includes(domain))) return false;
+      
+      // WordPress/CMS-specific patterns
+      const cmsDomains = [
+        'wordpress.org', 'wordpress.com', 'wp.com', 'wixpress.com',
+        'wix.com', 'squarespace.com', 'weebly.com', 'shopify.com',
+        'gravatar.com', 'jetpack.com', 'akismet.com'
+      ];
+      if (cmsDomains.some(domain => email.includes(domain))) return false;
+      
+      // Schema.org and other structured data
+      if (email.includes('schema.org')) return false;
+      
+      // Check for suspicious patterns in local part
+      const localPart = email.split('@')[0];
+      
+      // Local part that looks like a JavaScript/file variable
+      if (localPart.includes('jquery') || localPart.includes('bootstrap') || 
+          localPart.includes('script') || localPart.includes('style') ||
+          localPart.includes('wp-') || localPart.includes('plugin')) return false;
+      
+      // Local part with common file prefixes
+      if (localPart.startsWith('file-') || localPart.startsWith('asset-') ||
+          localPart.startsWith('img-') || localPart.startsWith('image-')) return false;
+      
+      // Check for too many consecutive special characters
+      if (/[._%-]{3,}/.test(localPart)) return false;
+      
+      // Check domain for suspicious patterns
+      const domainPart = email.split('@')[1];
+      
+      // Domain with typos (common patterns like "inform@ion.have" instead of "information.have")
+      // Check if domain has weird letter patterns
+      const domainWithoutTld = domainPart.substring(0, domainPart.lastIndexOf('.'));
+      if (domainWithoutTld.includes('@')) return false; // Double @ somehow
+      
+      // Check for domains that are too short or don't make sense
+      if (domainWithoutTld.length < 2) return false;
+      
+      // Domain that looks like it has typos (e.g., "e.is", "ion.have", "ion.as")
+      const suspiciousShortDomains = ['e.is', 'e.as', 'e.now', 'ion.have', 'ion.as'];
+      if (suspiciousShortDomains.some(d => domainPart.includes(d))) return false;
+      
+      return true;
+    });
     
     return filtered.slice(0, 8); // Increased limit to 8 emails
   }
