@@ -148,7 +148,10 @@ function SortableLeadCard({ lead }: { lead: Lead }) {
                       } else {
                           toast.warning("No similar leads found nearby.");
                       }
-                  } catch (err) { toast.error("Failed to find lookalikes"); }
+                  } catch (err) { 
+                      console.error(err);
+                      toast.error("Failed to find lookalikes"); 
+                  }
               }}
             >
                <SearchCheck className="w-4 h-4" />
@@ -181,13 +184,28 @@ export function KanbanBoard({ initialLeads }: { initialLeads?: Lead[] }) {
 
   const fetchLeads = async () => {
     try {
-      const res = await fetch('/api/leads'); // Assuming this returns all leads
+      setIsLoading(true);
+      const res = await fetch('/api/leads');
+      
+      if (res.status === 401) {
+        toast.error('Session expired. Please log in again.', {
+          description: 'Try refreshing the page or navigating to /login',
+          action: {
+            label: 'Login',
+            onClick: () => window.location.href = '/login'
+          }
+        });
+        return;
+      }
+
       if (!res.ok) throw new Error('Failed to fetch leads');
       const data = await res.json();
-      setLeads(data.leads || []); // Adjust based on actual API response structure
+      setLeads(data.leads || []); 
     } catch (error) {
       console.error('Error loading leads:', error);
-      toast.error('Failed to load pipeline');
+      toast.error('Pipeline failed to load', {
+        description: 'Please check your connection or database status.'
+      });
     } finally {
       setIsLoading(false);
     }

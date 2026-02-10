@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { sendEmail } from '@/lib/email-sender'; // Resuing existing sender
+import nodemailer from 'nodemailer';
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,18 +40,24 @@ export async function POST(req: NextRequest) {
          return NextResponse.json({ error: 'Cannot determine recipient' }, { status: 400 });
     }
 
-    // 2. Send Email via SMTP
-    // Extract actual email from "Name <email>" format if needed, but nodemailer handles it usually.
-    // For safety, let's try to extract just the email if simpler, but nodemailer 'to' accepts name <email>.
+    // 2. Send Email via SMTP (direct nodemailer — inbox replies bypass campaign tracking)
+    const account = thread.emailAccount;
+    const transporter = nodemailer.createTransport({
+      host: account.smtpHost,
+      port: account.smtpPort,
+      secure: account.smtpSecure,
+      auth: { user: account.smtpUser, pass: account.smtpPass },
+      tls: { rejectUnauthorized: false },
+    });
 
-    await sendEmail({
-      emailAccount: thread.emailAccount,
+    const info = await transporter.sendMail({
+      from: `"${account.fromName}" <${account.fromEmail}>`,
       to: toAddress,
       subject: "Re: " + thread.subject.replace(/^Re:\s*/i, ''),
-      html: body.replace(/\n/g, '<br>'), // Simple text to HTML
+      html: body.replace(/\n/g, '<br>'),
       text: body,
-      inReplyTo: lastMessage.messageId, // Critical for threading
-      references: lastMessage.messageId
+      inReplyTo: lastMessage.messageId,
+      references: lastMessage.messageId,
     });
 
     // 3. Save Sent Message to Database

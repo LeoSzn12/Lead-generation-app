@@ -51,8 +51,8 @@ export async function GET(
     ];
 
     const rows = leads.map((lead) => {
-      const emails = JSON.parse(lead.emails || '[]');
-      const owners = JSON.parse(lead.possibleOwnerNames || '[]');
+      const emails = lead.emails || [];
+      const owners = lead.possibleOwnerNames || [];
       
       return [
         escapeCsvValue(lead.businessName),

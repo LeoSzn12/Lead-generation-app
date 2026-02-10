@@ -55,6 +55,7 @@ export class EmailSyncService {
         const idHeader = "Imap-Id: "+id+"\r\n";
         
         // Parse email
+        if (!all) continue;
         const parsed = await simpleParser(idHeader + all.body);
         
         // Extract key info
@@ -66,7 +67,7 @@ export class EmailSyncService {
         const snippet = (parsed.text || '').slice(0, 100).replace(/\s+/g, ' ');
 
         // Check availability of from address
-        const fromHeader = parsed.from?.value;
+        const fromHeader: any = parsed.from?.value;
         const fromAddress = Array.isArray(fromHeader) ? fromHeader[0]?.address?.toLowerCase() : fromHeader?.address?.toLowerCase();
         
         if (!fromAddress) continue;

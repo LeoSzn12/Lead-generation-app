@@ -25,6 +25,11 @@ interface LeadGenerationOptions {
   template?: { subject?: string; body?: string };
   enableEmailVerification?: boolean;
   enableAIEnrichment?: boolean;
+  enrichmentSettings?: {
+    strategy: 'basic' | 'waterfall';
+    customPrompt?: string;
+    fields?: string[];
+  };
 }
 
 
@@ -58,7 +63,8 @@ export class LeadGenerationService {
   async processJob(options: LeadGenerationOptions) {
     const { 
         jobId, userId, workspaceId, cities, businessTypes, maxLeads, 
-        source, apiKey, generateOutreach = true, template, enableEmailVerification = false 
+        source, apiKey, generateOutreach = true, template, enableEmailVerification = false,
+        enrichmentSettings
     } = options;
 
     try {
@@ -241,12 +247,17 @@ export class LeadGenerationService {
                        
                        const pageContent = await contentScraper.scrapeContent(business.website);
                        if (pageContent?.content) {
-                           const enrichmentResult = await enrichmentService.enrichLead(businessName, pageContent.content);
+                           const enrichmentResult = await enrichmentService.enrichLead(
+                               businessName, 
+                               pageContent.content,
+                               enrichmentSettings?.customPrompt
+                           );
                            enrichedData = JSON.stringify({
                                summary: enrichmentResult.summary,
                                valueProp: enrichmentResult.valueProp,
                                techStack: enrichmentResult.techStack,
-                               hiring: enrichmentResult.hiring
+                               hiring: enrichmentResult.hiring,
+                               customResearch: enrichmentResult.customResearch
                            });
                            icebreaker = enrichmentResult.icebreaker;
                            enrichmentStatus = 'completed';
@@ -264,21 +275,28 @@ export class LeadGenerationService {
                       jobId, workspaceId, businessName, 
                       category: business.category || 'Local Business', 
                       address: business.address, city: business.city, state: business.state || 'California',
-                      phone: phones[0], website: business.website, emails, possibleOwnerNames: ownerNames,
-                      source: business.source || sourceName, outreachEmailDraft: outreachEmail,
+                      phone: phones[0] || null, 
+                      website: business.website || null, 
+                      emails: emails as string[], 
+                      possibleOwnerNames: ownerNames as string[],
+                      source: business.source || sourceName, 
+                      outreachEmailDraft: outreachEmail,
                       emailValidationStatus: emailValidationStatusStr, 
-                      emailConfidenceScore, primaryEmail,
-                      rating: business.rating, reviewCount: business.reviewCount,
-                      facebookUrl: socialMedia.facebook,
-                      linkedinUrl: socialMedia.linkedin,
-                      instagramUrl: socialMedia.instagram,
-                      twitterUrl: socialMedia.twitter,
-                      leadScore: leadScoreData.score, qualityTier: leadScoreData.tier,
+                      emailConfidenceScore: emailConfidenceScore as number | null, 
+                      primaryEmail: primaryEmail as string | null,
+                      rating: business.rating || null, 
+                      reviewCount: business.reviewCount || null,
+                      facebookUrl: socialMedia.facebook || null,
+                      linkedinUrl: socialMedia.linkedin || null,
+                      instagramUrl: socialMedia.instagram || null,
+                      twitterUrl: socialMedia.twitter || null,
+                      leadScore: leadScoreData.score, 
+                      qualityTier: leadScoreData.tier,
                       
                       // AI Fields
                       enrichmentStatus,
                       enrichedData,
-                      icebreaker
+                      icebreaker: icebreaker || null
                   }
               });
 
@@ -289,10 +307,14 @@ export class LeadGenerationService {
       }
 
       // Update quota
-      await prisma.workspace.update({
-          where: { id: workspaceId },
-          data: { leadsUsed: { increment: processedCount } }
-      });
+      // @ts-ignore - workspace model might be capitalized or lowercase depending on generation
+      const workspaceModel = (prisma as any).workspace || (prisma as any).Workspace;
+      if (workspaceModel) {
+          await workspaceModel.update({
+              where: { id: workspaceId },
+              data: { leadsUsed: { increment: processedCount } }
+          });
+      }
 
       // Finish
       await prisma.generationJob.update({

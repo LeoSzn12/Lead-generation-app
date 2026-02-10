@@ -11,6 +11,7 @@ import { generateOutreachEmail } from '@/lib/email-templates';
 import { removeDuplicates } from '@/lib/deduplication';
 import { verifyEmailBatch, getBestEmail } from '@/lib/email-verification-free';
 import { calculateLeadScore } from '@/lib/lead-scoring';
+import { LeadGenerationService } from '@/lib/lead-generation-service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
@@ -169,3 +170,19 @@ async function processLeadGeneration(
   template?: { subject?: string; body?: string },
   enableEmailVerification: boolean = false
 ) {
+  // Delegate to the refactored LeadGenerationService
+  const service = new LeadGenerationService();
+  await service.processJob({
+    jobId,
+    userId,
+    workspaceId,
+    cities,
+    businessTypes,
+    maxLeads,
+    source,
+    apiKey,
+    generateOutreach,
+    template,
+    enableEmailVerification,
+  });
+}

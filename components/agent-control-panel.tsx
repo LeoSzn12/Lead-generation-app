@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Plus, Trash2, Bot, MapPin, Target, Activity, Clock, Zap } from 'lucide-react';
+import { Play, Plus, Trash2, Bot, MapPin, Target, Activity, Clock, Zap, Pause, Power } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 
@@ -46,6 +46,7 @@ export function AgentControlPanel() {
       if (Array.isArray(data)) setAgents(data);
     } catch (error) {
       console.error('Failed to load agents');
+      toast.error('Failed to load agents');
     }
   };
 
@@ -69,6 +70,39 @@ export function AgentControlPanel() {
       toast.error('Failed to run agents');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleToggleAgent = async (agentId: string, currentActive: boolean) => {
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !currentActive })
+      });
+      if (res.ok) {
+        toast.success(currentActive ? 'Agent paused' : 'Agent resumed');
+        fetchAgents();
+      } else {
+        toast.error('Failed to update agent');
+      }
+    } catch (error) {
+      toast.error('Error updating agent');
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: string) => {
+    if (!confirm('Are you sure you want to delete this agent?')) return;
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Agent deleted');
+        fetchAgents();
+      } else {
+        toast.error('Failed to delete agent');
+      }
+    } catch (error) {
+      toast.error('Error deleting agent');
     }
   };
 
@@ -266,6 +300,14 @@ export function AgentControlPanel() {
 
                 <div className="flex items-center gap-6 text-sm">
                     <div className="text-right">
+                        <p className="text-slate-500">Leads</p>
+                        <p className="font-bold text-emerald-600">{agent.totalLeadsFound}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-slate-500">Runs</p>
+                        <p className="font-bold">{agent.totalRuns}</p>
+                    </div>
+                    <div className="text-right">
                         <p className="text-slate-500">Last Run</p>
                         <p className="font-medium">
                             {agent.lastRunAt ? new Date(agent.lastRunAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Never'}
@@ -276,6 +318,22 @@ export function AgentControlPanel() {
                         <p className="font-medium text-emerald-600">
                             {new Date(agent.nextRunAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </p>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                        <button
+                            onClick={() => handleToggleAgent(agent.id, agent.isActive)}
+                            className={`p-2 rounded-lg transition-colors ${agent.isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                            title={agent.isActive ? 'Pause Agent' : 'Resume Agent'}
+                        >
+                            {agent.isActive ? <Pause className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                        </button>
+                        <button
+                            onClick={() => handleDeleteAgent(agent.id)}
+                            className="p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete Agent"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
             </div>

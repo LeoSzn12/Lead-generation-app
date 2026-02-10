@@ -89,8 +89,7 @@ export class AgentRunner {
             // (Assumes we have a helper or just create CampaignLeads)
             // Ideally we'd reuse a service, but manual insert is fine for now
             const campaignLeads = leads.map(lead => ({
-                cid: `cl_${Date.now()}_${lead.id}`, // simple ID gen if needed or rely on default
-                campaignId: agent.campaignId,
+                campaignId: agent.campaignId!,
                 leadId: lead.id,
                 status: 'pending'
             }));

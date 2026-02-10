@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Sparkles, Clock, Zap, Globe, CheckCircle2, Mail } from 'lucide-react'
+import { Loader2, Sparkles, Clock, Zap, Globe, CheckCircle2, Mail, Bot } from 'lucide-react'
 import { toast } from 'sonner'
 import { estimateTime } from '@/lib/utils'
 import { TemplateManager, EmailTemplate } from '@/components/template-manager'
@@ -27,6 +27,11 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [generateOutreach, setGenerateOutreach] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null)
+  
+  // Enhancement States (LeadGen 2.0)
+  const [enrichmentStrategy, setEnrichmentStrategy] = useState<'basic' | 'waterfall'>('basic')
+  const [customResearchPrompt, setCustomResearchPrompt] = useState('')
+  const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>(['tech_stack', 'socials'])
 
   // Popular business type suggestions
   const popularBusinessTypes = [
@@ -149,6 +154,11 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
           source,
           apiKey: source === 'google_maps' || source === 'multi_source' ? apiKey : undefined,
           generateOutreach,
+          enrichmentSettings: {
+            strategy: enrichmentStrategy,
+            customPrompt: customResearchPrompt,
+            fields: selectedEnrichmentFields
+          },
           template: selectedTemplate ? {
             subject: selectedTemplate.subject,
             body: selectedTemplate.body,
@@ -334,6 +344,73 @@ export function LeadGenerationForm({ onJobCreated }: LeadGenerationFormProps) {
                   selectedTemplateId={selectedTemplate?.id || null}
                 />
               </div>
+            )}
+          </div>
+
+          <Separator className="my-6" />
+
+          {/* LeadGen 2.0: Enrichment Strategy (Clay-inspired) */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+               <Bot className="w-4 h-4 text-purple-600" />
+               Enrichment Strategy (Clay-style)
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+               <div 
+                 onClick={() => setEnrichmentStrategy('basic')}
+                 className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${enrichmentStrategy === 'basic' ? 'border-blue-600 bg-blue-50/50' : 'border-slate-100 dark:border-slate-800'}`}
+               >
+                 <div className="font-bold text-sm mb-1">Standard</div>
+                 <div className="text-[10px] text-slate-500">Contact info & Socials</div>
+               </div>
+               <div 
+                 onClick={() => setEnrichmentStrategy('waterfall')}
+                 className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${enrichmentStrategy === 'waterfall' ? 'border-purple-600 bg-purple-50/50 shadow-sm' : 'border-slate-100 dark:border-slate-800'}`}
+               >
+                 <div className="font-bold text-sm mb-1">Waterfall Enrichment</div>
+                 <div className="text-[10px] text-slate-500">Deep search + Tech stacks</div>
+                 <div className="absolute top-2 right-2 flex gap-1">
+                   <div className="bg-purple-600 text-white text-[8px] px-1 rounded uppercase font-bold">New</div>
+                 </div>
+               </div>
+            </div>
+
+            {enrichmentStrategy === 'waterfall' && (
+               <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300">
+                  <Label className="text-xs">Data Points to Scrape:</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['tech_stack', 'socials', 'hiring_status', 'funding', 'founder_info'].map(field => (
+                      <div key={field} className="flex items-center gap-2">
+                        <Checkbox 
+                          id={`f-${field}`} 
+                          checked={selectedEnrichmentFields.includes(field)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedEnrichmentFields([...selectedEnrichmentFields, field]);
+                            else setSelectedEnrichmentFields(selectedEnrichmentFields.filter(f => f !== field));
+                          }}
+                        />
+                        <Label htmlFor={`f-${field}`} className="text-xs capitalize cursor-pointer">{field.replace('_', ' ')}</Label>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Separator className="my-2" />
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="customPrompt" className="text-xs flex items-center gap-2">
+                       <Zap className="w-3 h-3 text-orange-500" />
+                       Custom AI Research (Thunderbit-style)
+                    </Label>
+                    <textarea 
+                      id="customPrompt"
+                      className="w-full min-h-[80px] p-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 feedback-ring"
+                      placeholder="e.g. 'Check if they have a refund policy page', 'Find their pricing model'"
+                      value={customResearchPrompt}
+                      onChange={(e) => setCustomResearchPrompt(e.target.value)}
+                    />
+                    <p className="text-[10px] text-slate-400">GPT-5 Nano will browse the site to find answers.</p>
+                  </div>
+               </div>
             )}
           </div>
 

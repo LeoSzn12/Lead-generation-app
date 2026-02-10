@@ -9,11 +9,12 @@ import { AgentControlPanel } from '@/components/agent-control-panel'
 import EmailCampaignBuilder from '@/components/email-campaign-builder'
 import CampaignAnalyticsDashboard from '@/components/campaign-analytics'
 import EmailAccountSettings from '@/components/email-account-settings'
-import { Search, TrendingUp, Users, Moon, Sun, LayoutDashboard, Send, Kanban, Settings, CheckCircle2, Inbox, Bot } from 'lucide-react'
+import { Search, TrendingUp, Users, Moon, Sun, LayoutDashboard, Send, Kanban, Settings, CheckCircle2, Inbox, Bot, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Toaster } from 'sonner'
+import Link from 'next/link'
 
 export default function Home() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
@@ -113,6 +114,14 @@ export default function Home() {
                 <Settings className="w-4 h-4" />
                 Settings
               </button>
+              <Link href="/tutorial">
+                <button
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all border border-indigo-100 dark:border-indigo-900/30 ml-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  How it Works
+                </button>
+              </Link>
             </nav>
 
             {/* Theme Toggle */}
@@ -219,6 +228,33 @@ export default function Home() {
         )}
 
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 safe-bottom">
+        <div className="flex justify-around items-center h-16 px-2">
+          {[
+            { id: 'search', icon: Search, label: 'Leads' },
+            { id: 'crm', icon: Kanban, label: 'Pipeline' },
+            { id: 'inbox', icon: Inbox, label: 'Inbox' },
+            { id: 'agents', icon: Bot, label: 'Agents' },
+            { id: 'campaigns', icon: Send, label: 'Campaigns' },
+            { id: 'settings', icon: Settings, label: 'Settings' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
+                activeTab === tab.id 
+                  ? 'text-indigo-600 dark:text-indigo-400' 
+                  : 'text-slate-400 dark:text-slate-500'
+              }`}
+            >
+              <tab.icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </main>
   )
 }
