@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Download, Clock, CheckCircle2, XCircle, Loader2, Mail, Phone, Globe, User, Copy, Check, FileSpreadsheet, RefreshCw, Search, Filter, Facebook, Linkedin, Instagram, Twitter } from 'lucide-react'
+import { Download, Clock, CheckCircle2, XCircle, Loader2, Mail, Phone, Globe, User, Copy, Check, FileSpreadsheet, RefreshCw, Search, Filter, Facebook, Linkedin, Instagram, Twitter, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
@@ -33,6 +33,12 @@ interface Lead {
   instagramUrl?: string
   twitterUrl?: string
   employeeCount?: string
+  
+  // Enrichment fields (New)
+  enrichmentStatus?: string
+  websiteContent?: string
+  enrichedData?: string
+  icebreaker?: string
 }
 
 interface Job {
@@ -190,6 +196,46 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
 
   const handleRetry = async () => {
     toast.info('Retry functionality coming soon!')
+  }
+
+  const handleEnrich = async (leadId: string) => {
+    if (!job) return
+    
+    // Optimistic update
+    setJob({
+      ...job,
+      leads: job.leads.map(l => l.id === leadId ? { ...l, enrichmentStatus: 'processing' } : l)
+    })
+    
+    try {
+      const res = await fetch(`/api/leads/${leadId}/enrich`, { method: 'POST' })
+      const data = await res.json()
+      
+      if (!res.ok) throw new Error(data.error)
+
+      // Update with enriched data
+      const updatedLead = data.lead
+      setJob(prev => prev ? ({
+        ...prev,
+        leads: prev.leads.map(l => l.id === leadId ? { ...l, ...updatedLead } : l)
+      }) : null)
+      
+      toast.success('Lead enriched successfully!')
+      
+      // Also update selectedLead if it's the one open
+      if (selectedLead?.id === leadId) {
+        setSelectedLead(prev => prev ? ({ ...prev, ...updatedLead }) : null)
+      }
+      
+    } catch (err: any) {
+      console.error('Enrichment failed', err)
+      toast.error(err.message || 'Enrichment failed')
+      // Revert/Fail status
+      setJob(prev => prev ? ({
+        ...prev,
+        leads: prev.leads.map(l => l.id === leadId ? { ...l, enrichmentStatus: 'failed' } : l)
+      }) : null)
+    }
   }
 
   // Filter and search logic
@@ -587,10 +633,93 @@ export function ResultsDisplay({ jobId }: ResultsDisplayProps) {
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline block"
                   >
-                    {selectedLead.website}
                   </a>
                 </div>
               )}
+
+              {/* AI Enrichment Section */}
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-sm font-semibold text-indigo-700 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Insights
+                    {selectedLead.enrichmentStatus === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                  </h4>
+                  {selectedLead.enrichmentStatus !== 'completed' && selectedLead.enrichmentStatus !== 'processing' && (
+                    <Button 
+                      onClick={() => handleEnrich(selectedLead.id)}
+                      disabled={!selectedLead.website}
+                      size="sm"
+                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {selectedLead.website ? '⚡ Enrich Lead' : 'No Website'}
+                    </Button>
+                  )}
+                </div>
+
+                {selectedLead.enrichmentStatus === 'completed' && (() => {
+                  let data = null;
+                  try {
+                    data = selectedLead.enrichedData ? JSON.parse(selectedLead.enrichedData) : null;
+                  } catch (e) {}
+
+                  return (
+                    <div className="space-y-3 text-sm">
+                      {selectedLead.icebreaker && (
+                        <div className="bg-white p-3 rounded border border-indigo-100 shadow-sm relative group">
+                          <div className="text-xs text-indigo-500 font-medium mb-1 flex items-center gap-1">
+                            🧊 Icebreaker
+                          </div>
+                          <p className="text-gray-700 italic pr-8">"{selectedLead.icebreaker}"</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => copyToClipboard(selectedLead.icebreaker!, 'icebreaker')}
+                          >
+                            {copiedField === 'icebreaker' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {data && (
+                        <div className="grid grid-cols-1 gap-3">
+                          {data.summary && (
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Summary</div>
+                              <div className="text-gray-800 leading-relaxed">{data.summary}</div>
+                            </div>
+                          )}
+                          
+                          {data.valueProp && (
+                            <div>
+                              <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Value Proposition</div>
+                              <div className="text-gray-800 font-medium">{data.valueProp}</div>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2 items-start mt-1">
+                            {data.techStack?.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 input-label">
+                                {data.techStack.map((tech: string) => (
+                                  <Badge key={tech} variant="secondary" className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 font-normal">
+                                    {tech}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {data.hiring && (
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200">
+                                🚀 Hiring
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* Social Media Handles */}
               {(selectedLead.facebookUrl || selectedLead.linkedinUrl || selectedLead.instagramUrl || selectedLead.twitterUrl) && (

@@ -50,25 +50,30 @@ export async function GET(
       'outreach_email_draft',
     ];
 
-    const rows = leads.map((lead) => [
-      escapeCsvValue(lead.businessName),
-      escapeCsvValue(lead.category),
-      escapeCsvValue(lead.rating ? lead.rating.toString() : ''),
-      escapeCsvValue(lead.reviewCount ? lead.reviewCount.toString() : ''),
-      escapeCsvValue(lead.address || ''),
-      escapeCsvValue(lead.city || ''),
-      escapeCsvValue(lead.state || ''),
-      escapeCsvValue(lead.phone || ''),
-      escapeCsvValue(lead.website || ''),
-      escapeCsvValue(lead.emails?.join('; ') || ''),
-      escapeCsvValue(lead.possibleOwnerNames?.join('; ') || ''),
-      escapeCsvValue(lead.facebookUrl || ''),
-      escapeCsvValue(lead.linkedinUrl || ''),
-      escapeCsvValue(lead.instagramUrl || ''),
-      escapeCsvValue(lead.twitterUrl || ''),
-      escapeCsvValue(lead.source),
-      escapeCsvValue(lead.outreachEmailDraft || ''),
-    ]);
+    const rows = leads.map((lead) => {
+      const emails = JSON.parse(lead.emails || '[]');
+      const owners = JSON.parse(lead.possibleOwnerNames || '[]');
+      
+      return [
+        escapeCsvValue(lead.businessName),
+        escapeCsvValue(lead.category),
+        escapeCsvValue(lead.rating ? lead.rating.toString() : ''),
+        escapeCsvValue(lead.reviewCount ? lead.reviewCount.toString() : ''),
+        escapeCsvValue(lead.address || ''),
+        escapeCsvValue(lead.city || ''),
+        escapeCsvValue(lead.state || ''),
+        escapeCsvValue(lead.phone || ''),
+        escapeCsvValue(lead.website || ''),
+        escapeCsvValue(emails.join('; ')),
+        escapeCsvValue(owners.join('; ')),
+        escapeCsvValue(lead.facebookUrl || ''),
+        escapeCsvValue(lead.linkedinUrl || ''),
+        escapeCsvValue(lead.instagramUrl || ''),
+        escapeCsvValue(lead.twitterUrl || ''),
+        escapeCsvValue(lead.source),
+        escapeCsvValue(lead.outreachEmailDraft || ''),
+      ];
+    });
 
     const csvContent = [
       headers.join(','),

@@ -1,35 +1,145 @@
 generator client {
-    provider = "prisma-client-js"
-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
-    output = "/home/ubuntu/lead_gen_webapp/nextjs_space/node_modules/.prisma/client"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model GenerationJob {
-  id          String   @id @default(cuid())
-  cities      String[]
-  businessTypes String[]
-  maxLeads    Int
-  status      String   @default("pending") // pending, processing, completed, failed
-  progress    String   @default("Initializing...") 
-  totalFound  Int      @default(0)
-  totalProcessed Int   @default(0)
-  error       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  leads       Lead[]
+// ============================================
+// Authentication & Multi-Tenancy Models
+// ============================================
 
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  workspaceId   String
+  role          String    @default("member") // admin, member, viewer
+  
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jobs          GenerationJob[]
+  activities    Activity[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([email])
+}
+
+model Workspace {
+  id            String    @id @default(cuid())
+  name          String
+  
+  // API Keys & Configuration
+  googleMapsApiKey      String?
+  emailVerificationKey  String?
+  emailVerificationProvider String? // hunter, zerobounce, neverbounce
+  
+  // Usage & Limits
+  leadsQuota    Int       @default(500) // Monthly quota
+  leadsUsed     Int       @default(0)
+  quotaResetAt  DateTime  @default(now())
+  
+  users         User[]
+  jobs          GenerationJob[]
+  leads         Lead[]
+  agents        Agent[]
+  emailAccounts EmailAccount[]
+  campaigns     EmailCampaign[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([createdAt])
+}
+
+// ============================================
+// Lead Generation Models
+// ============================================
+
+model GenerationJob {
+  id                String    @id @default(cuid())
+  userId            String
+  workspaceId       String
+  
+  cities            String[]  // Native PostgreSQL array
+  businessTypes     String[]  // Native PostgreSQL array
+  maxLeads          Int
+  source            String    // google_maps, yelp, yellowpages, multi_source
+  
+  status            String    @default("pending") // pending, processing, completed, failed
+  progress          String    @default("Initializing...")
+  totalFound        Int       @default(0)
+  totalProcessed    Int       @default(0)
+  error             String?
+  
+  // Email verification settings
+  emailVerificationEnabled Boolean @default(false)
+  
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads             Lead[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Agents (Auto-Pilot)
+  agent           Agent?        @relation(fields: [agentId], references: [id])
+  agentId         String?
+
+  @@index([userId])
+  @@index([workspaceId])
   @@index([status])
+}
+
+model Agent {
+  id              String         @id @default(cuid())
+  workspaceId     String
+  userId          String
+  
+  name            String         // e.g., "Coffee Shops in Miami Agent"
+  isActive        Boolean        @default(true)
+  
+  // Configuration
+  niche           String         // e.g., "Coffee Shops"
+  location        String         // e.g., "Miami, FL"
+  dailyLimit      Int            @default(10)
+  
+  // Schedule
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?      @default(now())
+  runInterval     Int            @default(24) // Hours
+  
+  // Campaign Linking
+  campaignId      String?        // Auto-add leads to this campaign
+  
+  // Stats
+  totalLeadsFound Int            @default(0)
+  totalRuns       Int            @default(0)
+  
+  // Relations
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jobs            GenerationJob[]
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([workspaceId])
+  @@index([isActive])
+  @@index([nextRunAt])
   @@index([createdAt])
 }
 
 model Lead {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   jobId                 String
+  workspaceId           String
+  
+  // Basic Information
   businessName          String
   category              String
   address               String?
@@ -37,10 +147,19 @@ model Lead {
   state                 String?
   phone                 String?
   website               String?
-  emails                String[] @default([])
-  possibleOwnerNames    String[] @default([])
+  
+  // Contact Information (Native Arrays)
+  emails                String[]  @default([])
+  possibleOwnerNames    String[]  @default([])
+  
+  // Email Verification
+  emailValidationStatus String?   // valid, invalid, risky, unknown
+  emailConfidenceScore  Float?    // 0-100
+  primaryEmail          String?   // Best verified email
+  
+  // Data Source
   source                String
-  outreachEmailDraft    String   @db.Text
+  outreachEmailDraft    String    @default("")
   
   // Social Media & Enrichment
   facebookUrl           String?
@@ -51,18 +170,318 @@ model Lead {
   reviewCount           Int?
   employeeCount         String?
   
+  // AI Enrichment
+  enrichmentStatus      String    @default("not_started") // not_started, processing, completed, failed
+  websiteContent        String?   @db.Text // Raw text summary of website
+  enrichedData          String?   // JSON string: { techStack: [], hiring: boolean, valueProp: string, summary: string }
+  icebreaker            String?   // AI-generated personalized opening line
+  embedding             Float[]   // Vector embedding (1536 dims for OpenAI)
+  
   // Lead Management
-  tags                  String[] @default([])
-  notes                 String?  @db.Text
-  isContacted           Boolean  @default(false)
+  status                String    @default("new") // new, contacted, qualified, won, lost, nurturing
+  leadScore             Int       @default(0) // 0-105 quality score
+  qualityTier           String    @default("bronze") // gold, silver, bronze
+  
+  tags                  String[]  @default([])
+  notes                 String?
+  
+  isContacted           Boolean   @default(false)
   contactedAt           DateTime?
+  lastActivityAt        DateTime?
+  nextFollowUpAt        DateTime?
   
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @default(now()) @updatedAt
-  
+  // Relations
   job                   GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activities            Activity[]
+  threads               EmailThread[] // Link to email conversations
+  campaignLeads         CampaignLead[]
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([jobId])
+  @@index([workspaceId])
   @@index([category])
+  @@index([status])
   @@index([isContacted])
+  @@index([leadScore])
+  @@index([qualityTier])
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+  @@index([phone]) // For deduplication
+}
+
+// ============================================
+// Activity Tracking
+// ============================================
+
+model Activity {
+  id          String    @id @default(cuid())
+  leadId      String
+  userId      String
+  
+  type        String    // note, email_sent, call_made, status_change, tag_added
+  content     String?   // Note content or description
+  metadata    String?   // JSON string for additional data
+  vapiCallId  String?   // Vapi.ai Call ID
+  
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([leadId, createdAt])
+}
+
+// ============================================
+// Email Warmup & Sending
+// ============================================
+
+model EmailAccount {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  userId          String
+
+  // Display
+  name            String    // "My Gmail", "Sales Outreach", etc.
+  fromName        String    // Display name in emails
+  fromEmail       String    // user@domain.com
+
+  // SMTP Configuration
+  smtpHost        String    // smtp.gmail.com
+  smtpPort        Int       @default(587)
+  smtpUser        String
+  smtpPass        String    // App password (encrypted at rest)
+  smtpSecure      Boolean   @default(false) // true = TLS
+
+  // IMAP Configuration (New)
+  imapHost        String?   // imap.gmail.com
+  imapPort        Int       @default(993)
+  imapUser        String?   // Usually same as smtpUser
+  imapPass        String?   // Usually same as smtpPass
+
+  // Warmup State
+  warmupEnabled   Boolean   @default(true)
+  warmupPhase     Int       @default(1) // 1-4
+  warmupDay       Int       @default(0) // Days since warmup started
+  warmupStartedAt DateTime?
+  dailySendLimit  Int       @default(5)  // Current limit (ramps up)
+  dailySentCount  Int       @default(0)  // Emails sent today
+  dailyResetAt    DateTime  @default(now())
+
+  // Health
+  isActive        Boolean   @default(true)
+  isVerified      Boolean   @default(false)
+  lastError       String?
+  reputation      Int       @default(50) // 0-100 sender reputation score
+
+  // Relations
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns       EmailCampaign[]
+  sentEmails      SentEmail[]
+  threads         EmailThread[] // New relation
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([isActive])
+}
+
+// New Model: Email Thread (Groups messages)
+model EmailThread {
+  id              String         @id @default(cuid())
+  emailAccountId  String
+  leadId          String?        // Linked lead (if found)
+  
+  subject         String
+  lastMessageAt   DateTime
+  snippet         String?        // Preview of last message
+  unreadCount     Int            @default(0)
+  
+  // Status
+  status          String         @default("active") // active, archived, snoozed
+  folder          String         @default("inbox")  // inbox, sent, trash, spam
+  
+  // Relations
+  emailAccount    EmailAccount   @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+  lead            Lead?          @relation(fields: [leadId], references: [id])
+  messages        EmailMessage[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([emailAccountId])
+  @@index([leadId])
+  @@index([lastMessageAt])
+}
+
+// New Model: Individual Email Message
+model EmailMessage {
+  id              String       @id @default(cuid())
+  threadId        String
+  emailAccountId  String
+  
+  messageId       String       // Original Message-ID header
+  inReplyTo       String?      // References parent message ID
+  
+  from            String       // "John Doe <john@doe.com>"
+  to              String       // "Me <me@myco.com>"
+  cc              String?
+  bcc             String?
+  
+  subject         String
+  body            String?      @db.Text // HTML body
+  textBody        String?      @db.Text // Plain text body
+  snippet         String?
+  
+  isRead          Boolean      @default(false)
+  isFromMe        Boolean      @default(false) // True if sent by us
+  sentAt          DateTime
+  receivedAt      DateTime     @default(now())
+
+  // Relations
+  thread          EmailThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([emailAccountId])
+  @@index([messageId])
+}
+
+model EmailCampaign {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  userId          String
+  emailAccountId  String
+
+  // Campaign Info
+  name            String
+  subject         String    // Subject line (supports variables)
+  status          String    @default("draft") // draft, active, paused, completed, cancelled
+
+  // Targeting
+  targetLeadIds   String[]  @default([]) // Specific lead IDs to email
+  targetFilters   String?   // JSON: filters like status, tier, tags
+
+  // Schedule
+  sendStartTime   String    @default("09:00") // HH:MM in user's timezone
+  sendEndTime     String    @default("17:00")
+  timezone        String    @default("America/Los_Angeles")
+  delayBetweenEmails Int    @default(120) // Seconds between each send (randomized ±30%)
+
+  // Stats (denormalized for fast queries)
+  totalRecipients Int       @default(0)
+  totalSent       Int       @default(0)
+  totalOpened     Int       @default(0)
+  totalClicked    Int       @default(0)
+  totalReplied    Int       @default(0)
+  totalBounced    Int       @default(0)
+  totalUnsubscribed Int     @default(0)
+
+  // Relations
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  emailAccount    EmailAccount   @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+  steps           EmailSequenceStep[]
+  sentEmails      SentEmail[]
+  campaignLeads   CampaignLead[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@index([emailAccountId])
+}
+
+model EmailSequenceStep {
+  id              String    @id @default(cuid())
+  campaignId      String
+
+  // Step Config
+  stepOrder       Int       @default(1) // 1 = initial, 2+ = follow-ups
+  subject         String    // Can differ from campaign subject for follow-ups
+  body            String    // HTML email body (supports {variables})
+  delayDays       Int       @default(0) // Days to wait after previous step (0 = immediate)
+
+  // Conditions
+  sendIfNoReply   Boolean   @default(true) // Only send if no reply to previous step
+  sendIfNoOpen    Boolean   @default(false) // Only send if previous step wasn't opened
+
+  // Stats
+  totalSent       Int       @default(0)
+  totalOpened     Int       @default(0)
+  totalClicked    Int       @default(0)
+  totalReplied    Int       @default(0)
+
+  // Relations
+  campaign        EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sentEmails      SentEmail[]
+
+  createdAt       DateTime  @default(now())
+
+  @@index([campaignId])
+  @@index([stepOrder])
+}
+
+model SentEmail {
+  id              String    @id @default(cuid())
+  campaignId      String
+  stepId          String
+  emailAccountId  String
+  leadId          String
+  workspaceId     String
+
+  // Delivery
+  toEmail         String
+  toName          String?
+  subject         String
+  bodyHtml        String
+  trackingId      String    @unique @default(cuid()) // For pixel + link tracking
+
+  // Status
+  status          String    @default("queued") // queued, sending, sent, delivered, opened, clicked, replied, bounced, failed
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  repliedAt       DateTime?
+  bouncedAt       DateTime?
+  unsubscribedAt  DateTime?
+
+  errorMessage    String?
+  messageId       String?   // SMTP message ID for threading
+
+  // Relations
+  campaign        EmailCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  step            EmailSequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  emailAccount    EmailAccount     @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model CampaignLead {
+  id          String        @id @default(cuid())
+  campaignId  String
+  leadId      String
+  status      String        @default("pending") // pending, enriched, contacted
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  campaign    EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead        Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([status])
 }

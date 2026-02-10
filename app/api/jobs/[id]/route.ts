@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const jobId = params.id;
-
-    if (!jobId) {
+    // Authentication check
+    const user = await getCurrentUser();
+    
+    if (!user) {
       return NextResponse.json(
-        { error: 'Job ID is required' },
-        { status: 400 }
+        { error: 'Unauthorized - Please log in' },
+        { status: 401 }
       );
     }
 
     const job = await prisma.generationJob.findUnique({
-      where: { id: jobId },
+      where: { id: params.id },
       include: {
         leads: {
-          orderBy: { createdAt: 'desc' },
+          where: {
+            workspaceId: user.workspaceId, // Only show leads from user's workspace
+          },
+          orderBy: {
+            leadScore: 'desc', // Order by quality score
+          },
         },
       },
     });
@@ -30,6 +35,14 @@ export async function GET(
       return NextResponse.json(
         { error: 'Job not found' },
         { status: 404 }
+      );
+    }
+
+    // Verify workspace access
+    if (job.workspaceId !== user.workspaceId) {
+      return NextResponse.json(
+        { error: 'Forbidden - No access to this job' },
+        { status: 403 }
       );
     }
 
